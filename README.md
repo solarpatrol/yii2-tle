@@ -95,7 +95,7 @@ Both of them have the following common sensitive configuration properties:
 - `connectionTimeout` — timeout in seconds for CURL requests to Space Track API (defaults to `30`);
 - `enableCaching` — whether CURL requests' results should be cached (defaults to `true`);
 - `cacheExpiration` — cache expiration in seconds (defaults to `21600`);
-- `userAgent` — user agent header to set in CURL requests to Space Track API
+- `userAgent` — user agent header to set for CURL requests to Space Track API;
 - `proxyHost` — proxy host (if used);
 - `proxyPort` — proxy port (if used);
 - `proxyAuthLogin` — proxy authentication login (if proxy requires authentication);
