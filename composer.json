@@ -1,0 +1,13 @@
+{
+    "name": "solarpatrol/yii2-tle",
+    "description": "TLE storage component for Yii2 based on www.space-track.org API",
+    "license": "MIT",
+    "authors": [{
+        "name": "Dmitriy Pushkov",
+        "email": "ezze@ezze.org"
+    }],
+    "require": {
+        "php": ">=5.4.0",
+        "yiisoft/yii2": ">=2.0.9"
+    }
+}
