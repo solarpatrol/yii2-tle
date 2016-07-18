@@ -23,7 +23,7 @@ abstract class Storage extends Component
     public $proxyAuthPassword = '';
     public $userAgent;
     public $enableCaching = true;
-    public $cacheExpiration = 10800;
+    public $cacheExpiration = 21600;
 
     /**
      * @var array keeps default CURL options
