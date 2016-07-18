@@ -135,6 +135,10 @@ class FileStorage extends Storage
         flock($fh, LOCK_UN);
         fclose($fh);
 
+        if (isset($this->fileMode)) {
+            @chmod($filePath, $this->fileMode);
+        }
+
         return true;
     }
 
