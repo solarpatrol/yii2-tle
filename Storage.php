@@ -1,36 +1,52 @@
 <?php
 
-namespace app\components\tle;
+namespace solarpatrol\tle;
 
 use yii\base\Component;
 use yii\base\Exception;
+use yii\base\InvalidConfigException;
 use yii\helpers\Json;
 
-abstract class TleStorage extends Component
+abstract class Storage extends Component
 {
     const TLE_LINE_LENGTH = 69;
     const SECONDS_PER_DAY = 86400;
 
     public $spaceTrackUrl = 'https://www.space-track.org';
-    public $spaceTrackLogin = '';
-    public $spaceTrackPassword = '';
+    public $spaceTrackLogin;
+    public $spaceTrackPassword;
     public $connectionTimeout = 30;
     public $cookiePath = 'space-track-cookie';
     public $proxyHost;
     public $proxyPort;
-    public $proxyAuthLogin = false;
+    public $proxyAuthLogin;
     public $proxyAuthPassword = '';
     public $userAgent;
     public $enableCaching = true;
     public $cacheExpiration = 10800;
 
-    protected $defaultCurlOptions = [];
+    /**
+     * @var array keeps default CURL options
+     */
+    protected $curlOptions = [];
 
+    /**
+     * @inheritdoc
+     * @throws Exception
+     */
     public function init()
     {
         parent::init();
 
-        $this->defaultCurlOptions = [
+        if (!isset($this->spaceTrackLogin)) {
+            throw new InvalidConfigException('Space Track login is not provided.');
+        }
+
+        if (!isset($this->spaceTrackPassword)) {
+            throw new InvalidConfigException('Space Track password is not provided.');
+        }
+
+        $this->curlOptions = [
             CURLOPT_URL => $this->spaceTrackUrl,
             CURLOPT_HTTPHEADER => [
                 'Accept: */*',
@@ -51,7 +67,7 @@ abstract class TleStorage extends Component
         }
 
         if (isset($this->userAgent)) {
-            $this->defaultCurlOptions[CURLOPT_USERAGENT] = $this->userAgent;
+            $this->curlOptions[CURLOPT_USERAGENT] = $this->userAgent;
         }
     }
 
@@ -112,8 +128,8 @@ abstract class TleStorage extends Component
         $day = intval(gmdate('j', $timestamp));
         $currentDayStartTimestamp = gmmktime(0, 0, 0, $month, $day, $year);
 
-        $startTimestamp = $currentDayStartTimestamp - $actualDaysCount * TleStorage::SECONDS_PER_DAY;
-        $endTimestamp = $currentDayStartTimestamp + ($actualDaysCount + 1) * TleStorage::SECONDS_PER_DAY;
+        $startTimestamp = $currentDayStartTimestamp - $actualDaysCount * Storage::SECONDS_PER_DAY;
+        $endTimestamp = $currentDayStartTimestamp + ($actualDaysCount + 1) * Storage::SECONDS_PER_DAY;
 
         return $this->updateRange($ids, $startTimestamp, $endTimestamp);
     }
@@ -182,7 +198,7 @@ abstract class TleStorage extends Component
 
             $this->logout($cookiePath);
 
-            $data = $this->parseTleData($fetchResult['output']);
+            $data = self::parseTleData($fetchResult['output']);
             if ($this->enableCaching) {
                 \Yii::$app->cache->set($cacheKey, $data, $this->cacheExpiration);
             }
@@ -197,7 +213,7 @@ abstract class TleStorage extends Component
         }
     }
 
-    protected function parseTleData(&$output)
+    protected static function parseTleData(&$output)
     {
         $outputData = Json::decode($output);
 
@@ -214,7 +230,7 @@ abstract class TleStorage extends Component
                 'line1' => $line1,
                 'line2' => $line2,
                 'epochTime' => $epoch,
-                'epochTimestamp' => $this->getEpochTimestamp($line1),
+                'epochTimestamp' => self::getEpochTimestamp($line1),
                 'epochTimestampParsed' => gmmktime(
                     $epochParsed['hour'],
                     $epochParsed['minute'],
@@ -229,7 +245,7 @@ abstract class TleStorage extends Component
         return $data;
     }
 
-    protected function getEpochTimestamp($line1)
+    protected static function getEpochTimestamp($line1)
     {
         $year = intval(substr($line1, 18, 2));
         $year = ($year >= 57 ? 1900 : 2000) + $year;
@@ -239,7 +255,7 @@ abstract class TleStorage extends Component
 
     protected function curl($curlOptions = array(), $options = array())
     {
-        foreach ($this->defaultCurlOptions as $key => $value) {
+        foreach ($this->curlOptions as $key => $value) {
             if (!isset($curlOptions[$key])) {
                 $curlOptions[$key] = $value;
             }
@@ -298,10 +314,10 @@ abstract class TleStorage extends Component
         ]);
     }
 
-    public function setProxy($host, $port = 0, $authLogin = false, $authPassword = '')
+    public function setProxy($host, $port = 0, $authLogin = null, $authPassword = '')
     {
         if (!$host) {
-            $this->defaultCurlOptions[CURLOPT_PROXY] = null;
+            $this->curlOptions[CURLOPT_PROXY] = null;
             return;
         }
 
@@ -309,10 +325,10 @@ abstract class TleStorage extends Component
         if ($port) {
             $proxy .= ':' . $port;
         }
-        $this->defaultCurlOptions[CURLOPT_PROXY] = $proxy;
+        $this->curlOptions[CURLOPT_PROXY] = $proxy;
 
         if ($authLogin) {
-            $this->defaultCurlOptions[CURLOPT_PROXYUSERPWD] = $authLogin . ':' . $authPassword;
+            $this->curlOptions[CURLOPT_PROXYUSERPWD] = $authLogin . ':' . $authPassword;
         }
     }
 }

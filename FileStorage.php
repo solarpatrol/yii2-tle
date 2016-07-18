@@ -1,20 +1,22 @@
 <?php
 
-namespace app\components\tle;
+namespace solarpatrol\tle;
 
 use yii\base\Exception;
 use yii\helpers\ArrayHelper;
 use yii\helpers\FileHelper;
 
-class TleFileStorage extends TleStorage
+class FileStorage extends Storage
 {
-    public $storagePath;
+    public $storagePath = '@runtime/tle';
+    public $dirMode = 0775;
+    public $fileMode;
 
     public function init()
     {
-        $this->storagePath = FileHelper::normalizePath(\Yii::getAlias($this->storagePath));
+        $this->storagePath = \Yii::getAlias($this->storagePath);
         if (!is_dir($this->storagePath)) {
-            if (!FileHelper::createDirectory($this->storagePath, 0775)) {
+            if (!@FileHelper::createDirectory($this->storagePath, $this->dirMode)) {
                 throw new Exception('Unable to create TLE storage directory "' . $this->storagePath . '"');
             }
         }
@@ -31,12 +33,12 @@ class TleFileStorage extends TleStorage
         $timestamp = $this->getEpochTimestamp($line1);
         $directoryPath = $this->getDirectoryPath($id, $timestamp);
         if (!is_dir($directoryPath)) {
-            if (!FileHelper::createDirectory($directoryPath, 0775)) {
+            if (!@FileHelper::createDirectory($directoryPath, $this->dirMode)) {
                 throw new Exception('Unable to create directory "' . $directoryPath . "'");
             }
         }
 
-        return $this->writeTleFile($this->getFilePath($id, $timestamp), $line1, $line2);
+        return $this->write($this->getFilePath($id, $timestamp), $line1, $line2);
     }
 
     public function getRange($id, $startTimestamp, $endTimestamp)
@@ -63,7 +65,7 @@ class TleFileStorage extends TleStorage
 
     public function remove($id, $timestamp)
     {
-        return $this->deleteFile($this->getFilePath($id, $timestamp));
+        return $this->delete($this->getFilePath($id, $timestamp));
     }
 
     protected function getAllForDay($id, $time)
@@ -75,7 +77,7 @@ class TleFileStorage extends TleStorage
 
         foreach ($files as $file) {
             $filePath = sprintf('%s%s%s', $directoryPath, DIRECTORY_SEPARATOR, $file);
-            $tle = $this->readTleFile($filePath);
+            $tle = $this->read($filePath);
             if ($tle) {
                 $result[] = $tle;
             }
@@ -84,7 +86,7 @@ class TleFileStorage extends TleStorage
         return $result;
     }
 
-    protected function readTleFile($filePath)
+    protected function read($filePath)
     {
         $fh = fopen($filePath, 'r');
         if ($fh === false) {
@@ -100,6 +102,7 @@ class TleFileStorage extends TleStorage
             'line1' => fgets($fh),
             'line2' => fgets($fh)
         ];
+        flock($fh, LOCK_UN);
         fclose($fh);
 
         if ($result['line1'] === false || $result['line2'] === false) {
@@ -109,11 +112,11 @@ class TleFileStorage extends TleStorage
         $result['line1'] = substr($result['line1'], 0, self::TLE_LINE_LENGTH);
         $result['line2'] = substr($result['line2'], 0, self::TLE_LINE_LENGTH);
 
-        $info = $this->parseFilePath($filePath);
+        $info = self::parseFilePath($filePath);
         return ArrayHelper::merge($info ? $info : [], $result);
     }
 
-    protected function writeTleFile($filePath, $line1, $line2)
+    protected function write($filePath, $line1, $line2)
     {
         $fh = fopen($filePath, 'w');
         if ($fh === false) {
@@ -135,7 +138,7 @@ class TleFileStorage extends TleStorage
         return true;
     }
 
-    protected function deleteFile($filePath)
+    protected function delete($filePath)
     {
         $fh = fopen($filePath, 'r');
         if ($fh === false) {
@@ -199,7 +202,7 @@ class TleFileStorage extends TleStorage
         );
     }
 
-    protected function parseFilePath($filePath)
+    protected static function parseFilePath($filePath)
     {
         $parts = explode(DIRECTORY_SEPARATOR, $filePath);
         if (count($parts) < 5) {

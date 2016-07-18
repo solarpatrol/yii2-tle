@@ -2,7 +2,7 @@
 
 namespace solarpatrol\tle;
 
-class TleDatabaseStorage extends TleStorage
+class DatabaseStorage extends Storage
 {
     protected $db;
 
