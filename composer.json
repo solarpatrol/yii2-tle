@@ -1,6 +1,8 @@
 {
     "name": "solarpatrol/yii2-tle",
     "description": "TLE storage component for Yii2 based on www.space-track.org API",
+    "version": "1.0.0",
+    "keywords": ["tle", "storage", "satellites", "norad", "space-track"],
     "license": "MIT",
     "authors": [{
         "name": "Dmitriy Pushkov",

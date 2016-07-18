@@ -1,6 +1,11 @@
 # TLE module for Yii2
 
-This module extension provides [TLE](https://en.wikipedia.org/wiki/Two-line_element_set) storage component for Yii2.
+Module extension provides [TLE](https://en.wikipedia.org/wiki/Two-line_element_set) download and storage component
+for Yii2. It relies on [Space Track API](https://www.space-track.org/documentation#/api) to get relevant TLE data.
+
+## Requirements
+
+This module relies on [CURL PHP extension](http://php.net/manual/book.curl.php).
 
 ## Installation
 
@@ -46,8 +51,61 @@ to store TLEs in:
 
 Access TLE storage component:
 
-    \Yii::$app->getModule('tle')->update(40069, time());
+    $storage = \Yii::$app->getModule('tle')->storage;
+
+Download actual TLEs for Terra, Aqua and Meteor-M №2 satellites in a range of 3 days and add them to the storage
+(satellites are identified by their [NORAD ids](https://en.wikipedia.org/wiki/Satellite_Catalog_Number)):
+
+    $storage->update([25994, 27424, 40069], time(), 3]);
+    
+Add TLE for Terra to the storage manually (not recommended):
+
+    $storage->add(
+        25994,
+        '1 40069U 14037A   16200.39183603 -.00000022  00000-0  99041-5 0  9999'
+        '2 40069  98.7043 255.1534 0006745  96.2107 263.9838 14.20632312105160'
+    );
+    
+Find closest actual TLE for Terra in the storage within 5 days:
+
+    $tle = $storage->get(25994, time(), 5);
+    
+Get all TLEs for Terra in the storage within specified time range:
+
+    $startTimestamp = strtotime('2016-07-18');
+    $endTimestamp = strtotime('2016-07-20T23:59:59');
+    $tles = $storage->getRange(25994, $startTimestamp, $endTimestamp);
+    
+Remove Terra TLE from the storage by specific epoch time:
+
+    $storage->remove(25994, 1468833854); 
 
 ## Configuration
 
-// TODO:
+Two implementations of `solarpatrol\tle\Storage` component are supported:
+
+- `solarpatrol\tle\FileStorage` — stores TLEs in file system;
+- `solarpatrol\tle\DatabaseStorage` — stores TLEs in database.
+
+Both of them have the following common sensitive configuration properties:
+
+- `spaceTrackLogin` — [Space Track](https://www.space-track.org/) account's name (e-mail) that can be created
+[here](https://www.space-track.org/auth/createAccount) (required);
+- `spaceTrackPassword` — password to Space Track account (required);
+- `connectionTimeout` — timeout in seconds for CURL request to Space Track (defaults to `30`);
+- `enableCaching` — whether CURL requests' results should be cached (defaults to `true`);
+- `cacheExpiration` — cache expiration in seconds (defaults to `21600`);
+- `proxyHost` — proxy host (if used);
+- `proxyPort` — proxy port (if used);
+- `proxyAuthLogin` — proxy authentication login (if proxy requires authentication);
+- `proxyAuthPassword` — proxy authentication password (if proxy requires authentication).
+
+`FileStorage` has the following additional properties:
+
+- `storagePath` — path to directory to store TLE files in (defaults to `@runtime/tle`);
+- `dirMode` — directories' creation mode (defaults to `0775`);
+- `fileMode` — files' creation mode.
+
+`DatabaseStorage` has the following additional properties:
+
+- `db` — name, configuration array or instance of database connection used to access TLE table (defaults to `db`).
