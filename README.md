@@ -110,3 +110,7 @@ Both of them have the following common sensitive configuration properties:
 `DatabaseStorage` has the following additional properties:
 
 - `db` — name, configuration array or instance of database connection used to access TLE table (defaults to `db`).
+
+## Contribution
+
+Before making a pull request, please, be sure that your changes are rebased to `dev` branch.
