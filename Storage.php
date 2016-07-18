@@ -12,21 +12,68 @@ abstract class Storage extends Component
     const TLE_LINE_LENGTH = 69;
     const SECONDS_PER_DAY = 86400;
 
+    /**
+     * @var string URL of Space Track service.
+     */
     public $spaceTrackUrl = 'https://www.space-track.org';
+
+    /**
+     * @var string Space Track API account's login.
+     */
     public $spaceTrackLogin;
+
+    /**
+     * @var string Space Track API account's password.
+     */
     public $spaceTrackPassword;
+
+    /**
+     * @var int timeout in seconds to send an API request to Space Track.
+     */
     public $connectionTimeout = 30;
-    public $cookiePath = 'space-track-cookie';
-    public $proxyHost;
-    public $proxyPort;
-    public $proxyAuthLogin;
-    public $proxyAuthPassword = '';
-    public $userAgent;
+
+    /**
+     * @var bool whether data caching is enabled.
+     */
     public $enableCaching = true;
+
+    /**
+     * @var int cache expiration in seconds.
+     */
     public $cacheExpiration = 21600;
 
     /**
-     * @var array keeps default CURL options
+     * @var string user agent to send in headers of Space Track API requests.
+     */
+    public $userAgent;
+
+    /**
+     * @var string host of proxy server (if used).
+     */
+    public $proxyHost;
+
+    /**
+     * @var string port of proxy server (if used).
+     */
+    public $proxyPort;
+
+    /**
+     * @var string proxy server's authentication login (if proxy server requires authentication).
+     */
+    public $proxyAuthLogin;
+
+    /**
+     * @var string proxy server's authentication password (if proxy server requires authentication).
+     */
+    public $proxyAuthPassword = '';
+
+    /**
+     * @var string path to store cookies.
+     */
+    public $cookiePath = 'space-track-cookie';
+
+    /**
+     * @var array keeps CURL options
      */
     protected $curlOptions = [];
 
@@ -72,35 +119,51 @@ abstract class Storage extends Component
     }
 
     /**
-     * @param int $id
-     * @param int $timestamp
+     * Checks whether TLE for specified time exists in the storage.
+     *
+     * @param int $id satellite's NORAD identifier.
+     * @param int $timestamp Unix timestamp.
      * @return bool
      */
     abstract function exists($id, $timestamp);
 
     /**
-     * @param int $id
-     * @param string $line1
-     * @param string $line2
+     * Adds TLE to the storage.
+     *
+     * @param int $id satellite's NORAD identifier.
+     * @param string $line1 first line of TLE.
+     * @param string $line2 second line of TLE.
      * @return bool
      */
     abstract function add($id, $line1, $line2);
 
     /**
-     * @param int $id
-     * @param int $startTimestamp
-     * @param int $endTimestamp
-     * @return mixed
+     * Finds all TLEs in the storage within specified time range.
+     *
+     * @param int $id satellite's NORAD identifier.
+     * @param int $startTimestamp Unix timestamp of range's start.
+     * @param int $endTimestamp Unix timestamp of range's end.
+     * @return array
      */
     abstract function getRange($id, $startTimestamp, $endTimestamp);
 
     /**
-     * @param int $id
-     * @param int $timestamp
+     * Removes TLE from the storage.
+     *
+     * @param int $id satellite's NORAD identifier.
+     * @param int $timestamp Unix timestamp.
      * @return bool
      */
     abstract function remove($id, $timestamp);
 
+    /**
+     * Finds closest TLE in the storage within specified actual days in the past and in the future.
+     *
+     * @param int $id satellite's NORAD identifier.
+     * @param int $timestamp Unix timestamp.
+     * @param int $actualDaysCount days count to the past and to the future from specified time to search in.
+     * @return array|null
+     */
     public function get($id, $timestamp, $actualDaysCount = 5)
     {
         $startTime = $timestamp - self::SECONDS_PER_DAY * $actualDaysCount;
@@ -121,6 +184,14 @@ abstract class Storage extends Component
         return $closestTle;
     }
 
+    /**
+     * Downloads TLEs from Space Track for specified time and saves them in the storage.
+     *
+     * @param array $ids NORAD identifiers of satellites.
+     * @param int $timestamp Unix timestamp to download TLEs for.
+     * @param int $actualDaysCount days count to the past and to the future from specified time to download for.
+     * @return bool
+     */
     public function update(array $ids, $timestamp, $actualDaysCount = 5)
     {
         $year = intval(gmdate('Y', $timestamp));
@@ -134,6 +205,15 @@ abstract class Storage extends Component
         return $this->updateRange($ids, $startTimestamp, $endTimestamp);
     }
 
+    /**
+     * Downloads TLEs from Space Track for specified time range and saves them in the storage.
+     * 
+     * @param array $ids NORAD identifiers of satellites.
+     * @param int $startTimestamp Unix timestamp of range's start.
+     * @param int $endTimestamp Unix timestamp of range's end.
+     * @return bool
+     * @throws Exception
+     */
     public function updateRange(array $ids, $startTimestamp, $endTimestamp)
     {
         $data = $this->download($ids, $startTimestamp, $endTimestamp);
@@ -154,6 +234,15 @@ abstract class Storage extends Component
         return true;
     }
 
+    /**
+     * Downloads TLEs from Space Track for specified time range.
+     * 
+     * @param array $ids NORAD identifiers of satellites.
+     * @param int $startTimestamp Unix timestamp of range's start.
+     * @param int $endTimestamp Unix timestamp of range's end.
+     * @return array|bool
+     * @throws Exception
+     */
     public function download(array $ids, $startTimestamp, $endTimestamp)
     {
         $epochRange = gmdate('Y-m-d', $startTimestamp) . '--' . gmdate('Y-m-d', $endTimestamp);
@@ -213,6 +302,12 @@ abstract class Storage extends Component
         }
     }
 
+    /***
+     * Parses Space Track API's response.
+     * 
+     * @param string $output response JSON string.
+     * @return array TLE items.
+     */
     protected static function parseTleData(&$output)
     {
         $outputData = Json::decode($output);
@@ -245,6 +340,12 @@ abstract class Storage extends Component
         return $data;
     }
 
+    /**
+     * Gets epoch Unix timestamp from first TLE line.
+     * 
+     * @param $line1 first TLE line.
+     * @return int
+     */
     protected static function getEpochTimestamp($line1)
     {
         $year = intval(substr($line1, 18, 2));
@@ -253,6 +354,13 @@ abstract class Storage extends Component
         return gmmktime(0, 0, 0, 1, 1, $year) + $seconds;
     }
 
+    /**
+     * Executes CURL request.
+     * 
+     * @param array $curlOptions CURL options.
+     * @param array $options Options to pass existing CURL handler and leave CURL handler non-closed on complete.
+     * @return array
+     */
     protected function curl($curlOptions = array(), $options = array())
     {
         foreach ($this->curlOptions as $key => $value) {
@@ -288,6 +396,11 @@ abstract class Storage extends Component
         return $result;
     }
 
+    /**
+     * Logs in on Space Track.
+     * 
+     * @return array 
+     */
     protected function login()
     {
         $cookiePath = tempnam(sys_get_temp_dir(), $this->cookiePath);
@@ -305,6 +418,12 @@ abstract class Storage extends Component
         return $result;
     }
 
+    /**
+     * Logs out from Space Track.
+     * 
+     * @param string $cookiePath path to cookies.
+     * @return array
+     */
     protected function logout($cookiePath)
     {
         return $this->curl([
@@ -314,6 +433,14 @@ abstract class Storage extends Component
         ]);
     }
 
+    /**
+     * Sets proxy settins. 
+     * 
+     * @param string $host
+     * @param int $port
+     * @param string $authLogin
+     * @param string $authPassword
+     */
     public function setProxy($host, $port = 0, $authLogin = null, $authPassword = '')
     {
         if (!$host) {

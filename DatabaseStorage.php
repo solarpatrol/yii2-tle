@@ -7,14 +7,24 @@ use yii\di\Instance;
 
 class DatabaseStorage extends Storage
 {
+    /**
+     * @var string|array|\yii\db\Connection name, configuration or instance of database connection.
+     */
     public $db = 'db';
 
+    /**
+     * @inheritdoc
+     * @throws \yii\base\InvalidConfigException
+     */
     public function init()
     {
         parent::init();
         $this->db = Instance::ensure($this->db);
     }
 
+    /**
+     * @inheritdoc
+     */
     public function exists($id, $timestamp)
     {
         return Tle::find()
@@ -25,6 +35,9 @@ class DatabaseStorage extends Storage
             ->exists();
     }
 
+    /**
+     * @inheritdoc
+     */
     public function add($id, $line1, $line2)
     {
         $tle = new Tle([
@@ -36,6 +49,9 @@ class DatabaseStorage extends Storage
         return $tle->save(false);
     }
 
+    /**
+     * @inheritdoc
+     */
     public function getRange($id, $startTimestamp, $endTimestamp)
     {
         $tles = Tle::find()
@@ -59,6 +75,9 @@ class DatabaseStorage extends Storage
         return $tles;
     }
 
+    /**
+     * @inheritdoc
+     */
     public function remove($id, $timestamp)
     {
         $tle = Tle::find()

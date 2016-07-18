@@ -8,10 +8,26 @@ use yii\helpers\FileHelper;
 
 class FileStorage extends Storage
 {
+    /**
+     * @var string path to TLEs' storage directory.
+     */
     public $storagePath = '@runtime/tle';
+
+    /**
+     * @var int the permission to be set for created directories.
+     */
     public $dirMode = 0775;
+
+    /**
+     * @var int the permission to be set for created files.
+     */
     public $fileMode;
 
+    /**
+     * @inheritdoc
+     * @throws Exception
+     * @throws \yii\base\InvalidConfigException
+     */
     public function init()
     {
         $this->storagePath = \Yii::getAlias($this->storagePath);
@@ -23,11 +39,17 @@ class FileStorage extends Storage
         parent::init();
     }
 
+    /**
+     * @inheritdoc
+     */
     public function exists($id, $timestamp)
     {
         return is_file($this->getFilePath($id, $timestamp));
     }
 
+    /**
+     * @inheritdoc
+     */
     public function add($id, $line1, $line2)
     {
         $timestamp = $this->getEpochTimestamp($line1);
@@ -41,6 +63,9 @@ class FileStorage extends Storage
         return $this->write($this->getFilePath($id, $timestamp), $line1, $line2);
     }
 
+    /**
+     * @inheritdoc
+     */
     public function getRange($id, $startTimestamp, $endTimestamp)
     {
         $result = [];
@@ -63,11 +88,21 @@ class FileStorage extends Storage
         return $result;
     }
 
+    /**
+     * @inheritdoc
+     */
     public function remove($id, $timestamp)
     {
         return $this->delete($this->getFilePath($id, $timestamp));
     }
 
+    /**
+     * Gets all TLEs within a single day.
+     * 
+     * @param int $id satellite's NORAD identifier.
+     * @param int $time Unix timestamp belonging to the day of interest.
+     * @return array
+     */
     protected function getAllForDay($id, $time)
     {
         $result = [];
@@ -86,6 +121,12 @@ class FileStorage extends Storage
         return $result;
     }
 
+    /**
+     * Gets TLE from a file.
+     * 
+     * @param string $filePath path to TLE file.
+     * @return array|bool
+     */
     protected function read($filePath)
     {
         $fh = fopen($filePath, 'r');
@@ -116,6 +157,14 @@ class FileStorage extends Storage
         return ArrayHelper::merge($info ? $info : [], $result);
     }
 
+    /**
+     * Puts TLE in a file.
+     * 
+     * @param string $filePath path to TLE file.
+     * @param string $line1 first line of TLE.
+     * @param string $line2 second line of TLE.
+     * @return bool
+     */
     protected function write($filePath, $line1, $line2)
     {
         $fh = fopen($filePath, 'w');
@@ -142,6 +191,12 @@ class FileStorage extends Storage
         return true;
     }
 
+    /**
+     * Removes TLE file.
+     * 
+     * @param string $filePath path to TLE file.
+     * @return bool
+     */
     protected function delete($filePath)
     {
         $fh = fopen($filePath, 'r');
@@ -167,11 +222,24 @@ class FileStorage extends Storage
         return $result;
     }
 
+    /**
+     * Gets path to satellite's root TLE directory. 
+     * 
+     * @param int $id satellite's NORAD identifier.
+     * @return string
+     */
     protected function getSatellitePath($id)
     {
         return sprintf('%s%s%05d', $this->storagePath, DIRECTORY_SEPARATOR, $id);
     }
 
+    /**
+     * Gets path to satellite's TLE directory for specific day. 
+     * 
+     * @param int $id satellite's NORAD identifier.
+     * @param int $time Unix timestamp belonging to the day of interest.
+     * @return string
+     */
     protected function getDirectoryPath($id, $time)
     {
         return sprintf('%s%s%s%s%s%s%s', $this->getSatellitePath($id),
@@ -181,6 +249,13 @@ class FileStorage extends Storage
         );
     }
 
+    /**
+     * Gets list of TLE files in satellite's directory for specific day.
+     * 
+     * @param int $id satellite's NORAD identifier.
+     * @param int $time Unix timestamp belonging to the day of interest.
+     * @return array
+     */
     protected function getDirectoryFilesList($id, $time)
     {
         $directoryPath = $this->getDirectoryPath($id, $time);
@@ -199,6 +274,13 @@ class FileStorage extends Storage
         return $files;
     }
 
+    /**
+     * Gets path to TLE file. 
+     * 
+     * @param int $id satellite's NORAD identifier.
+     * @param int $time Unix timestamp of TLE.
+     * @return string
+     */
     protected function getFilePath($id, $time)
     {
         return sprintf('%s%s%s-%s-%s.tle', $this->getDirectoryPath($id, $time),
@@ -206,6 +288,12 @@ class FileStorage extends Storage
         );
     }
 
+    /**
+     * Parses satellite's NORAD identifier and time from file's path.
+     * 
+     * @param string $filePath path to TLE file.
+     * @return array|bool
+     */
     protected static function parseFilePath($filePath)
     {
         $parts = explode(DIRECTORY_SEPARATOR, $filePath);
