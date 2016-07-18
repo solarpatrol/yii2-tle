@@ -2,22 +2,24 @@
 
 namespace solarpatrol\tle;
 
+use solarpatrol\tle\models\Tle;
+use yii\di\Instance;
+
 class DatabaseStorage extends Storage
 {
-    protected $db;
+    public $db = 'db';
 
     public function init()
     {
-        // TODO: add option to choose database
-        $this->db = \Yii::$app->db;
         parent::init();
+        $this->db = Instance::ensure($this->db);
     }
 
     public function exists($id, $timestamp)
     {
         return Tle::find()
             ->where([
-                'satellite_id' => $id,
+                'norad_id' => $id,
                 'epoch_time' => gmdate('c', $timestamp)
             ])
             ->exists();
@@ -26,7 +28,7 @@ class DatabaseStorage extends Storage
     public function add($id, $line1, $line2)
     {
         $tle = new Tle([
-            'satellite_id' => $id,
+            'norad_id' => $id,
             'epoch_time' => gmdate('c', $this->getEpochTimestamp($line1)),
             'line_1' => $line1,
             'line_2' => $line2
@@ -38,12 +40,12 @@ class DatabaseStorage extends Storage
     {
         $tles = Tle::find()
             ->select([
-                'id' => 'satellite_id',
+                'id' => 'norad_id',
                 'timestamp' => 'epoch_time',
                 'line1' => 'line_1',
                 'line2' => 'line_2',
             ])
-            ->where(['satellite_id' => $id])
+            ->where(['norad_id' => $id])
             ->andWhere(['>=', 'epoch_time', gmdate('c', $startTimestamp)])
             ->andWhere(['<=', 'epoch_time', gmdate('c', $endTimestamp)])
             ->orderBy(['epoch_time' => SORT_ASC])
@@ -61,7 +63,7 @@ class DatabaseStorage extends Storage
     {
         $tle = Tle::find()
             ->where([
-                'satellite_id' => $id,
+                'norad_id' => $id,
                 'epoch_time' => gmdate('c', $timestamp)
             ])
             ->one();
