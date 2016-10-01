@@ -2,6 +2,7 @@
 
 namespace solarpatrol\tle;
 
+use solarpatrol\tle\models\Tle;
 use yii\base\Component;
 use yii\base\Exception;
 use yii\base\InvalidConfigException;
@@ -119,139 +120,91 @@ abstract class Storage extends Component
     }
 
     /**
-     * Checks whether TLE for specified time exists in the storage.
+     * Checks whether TLE is in the storage.
      *
-     * @param int $id satellite's NORAD identifier.
-     * @param int $timestamp Unix timestamp.
+     * @param object|TLE $tle
      * @return bool
      */
-    abstract function exists($id, $timestamp);
+    abstract function exists(&$tle);
 
     /**
      * Adds TLE to the storage.
      *
-     * @param int $id satellite's NORAD identifier.
-     * @param string $line1 first line of TLE.
-     * @param string $line2 second line of TLE.
+     * @param object|Tle $tle
      * @return bool
      */
-    abstract function add($id, $line1, $line2);
+    abstract function add(&$tle);
 
     /**
      * Finds all TLEs in the storage within specified time range.
      *
      * @param int $id satellite's NORAD identifier.
-     * @param int $startTimestamp Unix timestamp of range's start.
-     * @param int $endTimestamp Unix timestamp of range's end.
+     * @param int $startTime start of time range.
+     * @param int $endTime end of time range.
      * @return array
      */
-    abstract function getRange($id, $startTimestamp, $endTimestamp);
+    abstract function get($id, $startTime, $endTime);
 
     /**
      * Removes TLE from the storage.
      *
-     * @param int $id satellite's NORAD identifier.
-     * @param int $timestamp Unix timestamp.
+     * @param object|TLE
      * @return bool
      */
-    abstract function remove($id, $timestamp);
-
-    /**
-     * Finds closest TLE in the storage within specified actual days in the past and in the future.
-     *
-     * @param int $id satellite's NORAD identifier.
-     * @param int $timestamp Unix timestamp.
-     * @param int $actualDaysCount days count to the past and to the future from specified time to search in.
-     * @return array|null
-     */
-    public function get($id, $timestamp, $actualDaysCount = 5)
-    {
-        $startTime = $timestamp - self::SECONDS_PER_DAY * $actualDaysCount;
-        $endTime = $timestamp + self::SECONDS_PER_DAY * $actualDaysCount;
-
-        $tles = $this->getRange($id, $startTime, $endTime);
-
-        $closestTle = null;
-
-        foreach ($tles as $tle) {
-            if ($closestTle === null || abs($timestamp - $tle['timestamp']) < abs($timestamp - $closestTle['timestamp'])) {
-                $closestTle = $tle;
-                continue;
-            }
-            break;
-        }
-
-        return $closestTle;
-    }
-
-    /**
-     * Downloads TLEs from Space Track for specified time and saves them in the storage.
-     *
-     * @param array $ids NORAD identifiers of satellites.
-     * @param int $timestamp Unix timestamp to download TLEs for.
-     * @param int $actualDaysCount days count to the past and to the future from specified time to download for.
-     * @return bool
-     */
-    public function update(array $ids, $timestamp, $actualDaysCount = 5)
-    {
-        $year = intval(gmdate('Y', $timestamp));
-        $month = intval(gmdate('n', $timestamp));
-        $day = intval(gmdate('j', $timestamp));
-        $currentDayStartTimestamp = gmmktime(0, 0, 0, $month, $day, $year);
-
-        $startTimestamp = $currentDayStartTimestamp - $actualDaysCount * Storage::SECONDS_PER_DAY;
-        $endTimestamp = $currentDayStartTimestamp + ($actualDaysCount + 1) * Storage::SECONDS_PER_DAY;
-
-        return $this->updateRange($ids, $startTimestamp, $endTimestamp);
-    }
+    abstract function remove(&$tle);
 
     /**
      * Downloads TLEs from Space Track for specified time range and saves them in the storage.
-     * 
+     *
      * @param array $ids NORAD identifiers of satellites.
-     * @param int $startTimestamp Unix timestamp of range's start.
-     * @param int $endTimestamp Unix timestamp of range's end.
-     * @return bool
+     * @param int $startTime Unix timestamp of range's start.
+     * @param int $endTime Unix timestamp of range's end.
+     * @return array
      * @throws Exception
      */
-    public function updateRange(array $ids, $startTimestamp, $endTimestamp)
+    public function update(array $ids, $startTime, $endTime)
     {
-        $data = $this->download($ids, $startTimestamp, $endTimestamp);
-        if (!$data) {
-            return false;
-        }
+        $tles = $this->download($ids, $startTime, $endTime);
 
-        foreach ($data as $dataItem) {
-            if ($this->exists($dataItem['id'], $dataItem['epochTimestamp'])) {
+        foreach ($tles as $tle) {
+            if ($this->exists($tle)) {
                 continue;
             }
 
-            if (!$this->add($dataItem['id'], $dataItem['line1'], $dataItem['line2'])) {
-                return false;
+            if (!$this->add($tle)) {
+                throw new Exception(Module::t('Unable to add TLE to storage.'));
             }
         }
 
-        return true;
+        return $tles;
     }
 
     /**
      * Downloads TLEs from Space Track for specified time range.
-     * 
+     *
      * @param array $ids NORAD identifiers of satellites.
-     * @param int $startTimestamp Unix timestamp of range's start.
-     * @param int $endTimestamp Unix timestamp of range's end.
-     * @return array|bool
+     * @param int $startTime Start of time range.
+     * @param int $endTime End of time range.
+     * @return array
      * @throws Exception
      */
-    public function download(array $ids, $startTimestamp, $endTimestamp)
+    public function download(array $ids, $startTime, $endTime)
     {
-        $epochRange = gmdate('Y-m-d', $startTimestamp) . '--' . gmdate('Y-m-d', $endTimestamp);
+        $startTimestamp = self::timestamp($startTime);
+        $startTimestamp -= $startTimestamp % self::SECONDS_PER_DAY;
 
-        $url = sprintf('%s/basicspacedata/query/class/tle/format/json/EPOCH/%s/NORAD_CAT_ID/%s/orderby/EPOCH%%20desc',
-            $this->spaceTrackUrl, $epochRange, implode(',', $ids)
+        $endTimestamp = self::timestamp($endTime);
+        $endTimestamp -= $endTimestamp % self::SECONDS_PER_DAY - self::SECONDS_PER_DAY;
+
+        $epochRange = gmdate('Y-m-d', $startTimestamp) . '--' . gmdate('Y-m-d', $endTimestamp);
+        $predicates = ['TLE_LINE0', 'TLE_LINE1', 'TLE_LINE2'];
+
+        $url = sprintf('%s/basicspacedata/query/class/tle/format/json/predicates/%s/EPOCH/%s/NORAD_CAT_ID/%s/orderby/EPOCH%%20desc',
+            $this->spaceTrackUrl, implode(',', $predicates), $epochRange, implode(',', $ids)
         );
 
-        $cacheKey = 'tle-download:' . sha1(serialize([
+        // Checking whether TLEs are present in local cache
+        $cacheKey = 'tle:' . sha1(serialize([
             'epochStartTime' => $startTimestamp,
             'epochEndTime' => $endTimestamp,
             'ids' => $ids
@@ -266,28 +219,29 @@ abstract class Storage extends Component
 
         $cookiePath = null;
         try {
-            $loginResult = $this->login();
-            if ($loginResult['response']['http_code'] !== 200) {
-                return false;
+            $result = $this->login();
+            if ($result['response']['http_code'] !== 200) {
+                throw new Exception(sprintf(Module::t('Unable to log in with HTTP error code #%d.'), $result['response']['http_code']));
             }
 
-            $cookiePath = $loginResult['cookiePath'];
+            $cookiePath = $result['cookiePath'];
 
-            $fetchResult = $this->curl([
+            $result = $this->curl([
                 CURLOPT_URL => $url,
                 CURLOPT_HEADER => false,
                 CURLOPT_COOKIEFILE => $cookiePath
             ]);
-            if ($fetchResult['response']['http_code'] !== 200 ||
-                $fetchResult['response']['content_type'] !== 'application/json'
+
+            if ($result['response']['http_code'] !== 200 ||
+                $result['response']['content_type'] !== 'application/json'
             ) {
                 $this->logout($cookiePath);
-                return false;
+                throw new Exception(sprintf(Module::t('Request is ended with HTTP error code #%d.'), $result['response']['http_code']));
             }
 
             $this->logout($cookiePath);
 
-            $data = self::parseTleData($fetchResult['output']);
+            $data = self::parseTleData($result['output']);
             if ($this->enableCaching) {
                 \Yii::$app->cache->set($cacheKey, $data, $this->cacheExpiration);
             }
@@ -302,56 +256,113 @@ abstract class Storage extends Component
         }
     }
 
-    /***
-     * Parses Space Track API's response.
-     * 
-     * @param string $output response JSON string.
-     * @return array TLE items.
+    /**
+     * Finds closest TLE in a set of TLEs.
+     *
+     * @param array $tles set of TLEs.
+     * @param int $time time of interest.
+     * @return array|null
      */
-    protected static function parseTleData(&$output)
+    public static function getClosest(&$tles, $time)
     {
-        $outputData = Json::decode($output);
+        $time = self::timestamp($time);
 
-        $data = [];
-        foreach ($outputData as $outputDataItem) {
-            $id = intval($outputDataItem['NORAD_CAT_ID']);
-            $line1 = substr($outputDataItem['TLE_LINE1'], 0, self::TLE_LINE_LENGTH);
-            $line2 = substr($outputDataItem['TLE_LINE2'], 0, self::TLE_LINE_LENGTH);
-            $epoch = $outputDataItem['EPOCH'];
-            $epochParsed = date_parse_from_format('Y.m.d H:i:s', $outputDataItem['EPOCH']);
+        $closestTle = null;
+        $closestEpochTimestamp = null;
 
-            $data[] = [
-                'id' => $id,
-                'line1' => $line1,
-                'line2' => $line2,
-                'epochTime' => $epoch,
-                'epochTimestamp' => self::getEpochTimestamp($line1),
-                'epochTimestampParsed' => gmmktime(
-                    $epochParsed['hour'],
-                    $epochParsed['minute'],
-                    $epochParsed['second'],
-                    $epochParsed['month'],
-                    $epochParsed['day'],
-                    $epochParsed['year']
-                )
-            ];
+        foreach ($tles as $tle) {
+            $epochTimestamp = self::getEpochTimestamp($tle);
+            if ($closestTle === null || abs($time - $epochTimestamp) < abs($time - $closestEpochTimestamp)) {
+                $closestTle = $tle;
+                $closestEpochTimestamp = $epochTimestamp;
+                continue;
+            }
+            break;
         }
 
-        return $data;
+        return $closestTle;
     }
 
     /**
-     * Gets epoch Unix timestamp from first TLE line.
-     * 
-     * @param $line1 first TLE line.
+     * Gets unix timestamp
+     *
+     * @param string|int|null $time Time presentation.
+     * @return false|int
+     */
+    public static function timestamp($time = null)
+    {
+        if (is_string($time)) {
+            return strtotime($time);
+        }
+
+        if (is_int($time)) {
+            return $time;
+        }
+
+        return time();
+    }
+
+    /**
+     * Gets satellite's NORAD identifier from TLE.
+     *
+     * @param array|TLE $tle
      * @return int
      */
-    protected static function getEpochTimestamp($line1)
+    public static function getNoradId(&$tle)
     {
-        $year = intval(substr($line1, 18, 2));
+        if ($tle instanceof Tle) {
+            return $tle->norad_id;
+        }
+        return intval(substr($tle[1], 2, 5));
+    }
+
+    /**
+     * Gets satellite's name from TLE.
+     * @param array|TLE $tle
+     * @return string
+     */
+    public static function getName(&$tle)
+    {
+        if ($tle instanceof Tle) {
+            return $tle->name;
+        }
+        return substr($tle[0], 2);
+    }
+
+    /**
+     * Gets epoch Unix timestamp from TLE.
+     *
+     * @param array|TLE $tle.
+     * @return int
+     */
+    public static function getEpochTimestamp(&$tle)
+    {
+        if ($tle instanceof Tle) {
+            return strtotime($tle->epoch_time);
+        }
+
+        $year = intval(substr($tle[1], 18, 2));
         $year = ($year >= 57 ? 1900 : 2000) + $year;
-        $seconds = intval((floatval(substr($line1, 20, 12)) - 1) * 86400);
+        $seconds = intval((floatval(substr($tle[1], 20, 12)) - 1) * 86400);
         return gmmktime(0, 0, 0, 1, 1, $year) + $seconds;
+    }
+
+    /***
+     * Parses Space Track API's response.
+     * 
+     * @param string $response Response JSON string.
+     * @return array TLE items.
+     */
+    protected static function parseTleData(&$response)
+    {
+        $response = Json::decode($response);
+
+        $items = [];
+        foreach ($response as $item) {
+            $items[] = array_values($item);
+        }
+
+        return $items;
     }
 
     /**

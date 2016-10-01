@@ -25,8 +25,10 @@ class DatabaseStorage extends Storage
     /**
      * @inheritdoc
      */
-    public function exists($id, $timestamp)
+    public function exists(&$tle)
     {
+        $id = self::getNoradId($tle);
+        $timestamp = self::getEpochTimestamp($tle);
         return Tle::find()
             ->where([
                 'norad_id' => $id,
@@ -38,22 +40,28 @@ class DatabaseStorage extends Storage
     /**
      * @inheritdoc
      */
-    public function add($id, $line1, $line2)
+    public function add(&$tle)
     {
-        $tle = new Tle([
-            'norad_id' => $id,
-            'epoch_time' => gmdate('c', $this->getEpochTimestamp($line1)),
-            'line_1' => $line1,
-            'line_2' => $line2
-        ]);
+        if (!($tle instanceof Tle)) {
+            $tle = new Tle([
+                'norad_id' => self::getNoradId($tle),
+                'name' => self::getName($tle),
+                'epoch_time' => gmdate('c', self::getEpochTimestamp($tle)),
+                'line_1' => $tle[1],
+                'line_2' => $tle[2]
+            ]);
+        }
         return $tle->save(false);
     }
 
     /**
      * @inheritdoc
      */
-    public function getRange($id, $startTimestamp, $endTimestamp)
+    public function get($id, $startTime, $endTime)
     {
+        $startTimestamp = self::timestamp($startTime);
+        $endTimestamp = self::timestamp($endTime);
+
         $tles = Tle::find()
             ->select([
                 'id' => 'norad_id',
@@ -78,14 +86,18 @@ class DatabaseStorage extends Storage
     /**
      * @inheritdoc
      */
-    public function remove($id, $timestamp)
+    public function remove(&$tle)
     {
-        $tle = Tle::find()
-            ->where([
-                'norad_id' => $id,
-                'epoch_time' => gmdate('c', $timestamp)
-            ])
-            ->one();
+        if (!($tle instanceof Tle)) {
+            $id = self::getNoradId($tle);
+            $timestamp = self::getEpochTimestamp($tle);
+            $tle = Tle::find()
+                ->where([
+                    'norad_id' => $id,
+                    'epoch_time' => gmdate('c', $timestamp)
+                ])
+                ->one();
+        }
         return $tle->delete() !== false ? true : false;
     }
 }

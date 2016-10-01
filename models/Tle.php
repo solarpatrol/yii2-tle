@@ -20,4 +20,13 @@ class Tle extends ActiveRecord
             'updatedAtAttribute' => 'updated_at'
         ]];
     }
+
+    public function getTleArray()
+    {
+        return [
+            '0 ' . $this->name,
+            $this->line_1,
+            $this->line_2
+        ];
+    }
 }
