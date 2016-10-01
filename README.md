@@ -114,6 +114,10 @@ Both of them have the following common sensitive configuration properties:
 
 - `db` — name, configuration array or instance of database connection used to access TLE table (defaults to `db`).
 
+## Console commands
+
+TODO
+
 ## Contribution
 
 Before making a pull request, please, be sure that your changes are rebased to `dev` branch.
