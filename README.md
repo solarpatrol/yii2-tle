@@ -56,29 +56,32 @@ Access TLE storage component:
 Download actual TLEs for Terra, Aqua and Meteor-M №2 satellites in a range of 3 days and add them to the storage
 (satellites are identified by their [NORAD ids](https://en.wikipedia.org/wiki/Satellite_Catalog_Number)):
 
-    $storage->update([25994, 27424, 40069], time(), 3]);
+    $storage->update([25994, 27424, 40069], time() - 86400 * 3, time());
     
 Add TLE for Terra to the storage manually (not recommended):
 
-    $storage->add(
-        25994,
-        '1 40069U 14037A   16200.39183603 -.00000022  00000-0  99041-5 0  9999'
+    $storage->add([
+        '0 25994',
+        '1 40069U 14037A   16200.39183603 -.00000022  00000-0  99041-5 0  9999',
         '2 40069  98.7043 255.1534 0006745  96.2107 263.9838 14.20632312105160'
-    );
-    
-Find closest actual TLE for Terra in the storage within 5 days:
-
-    $tle = $storage->get(25994, time(), 5);
+    ]);
     
 Get all TLEs for Terra in the storage within specified time range:
-
-    $startTimestamp = strtotime('2016-07-18');
-    $endTimestamp = strtotime('2016-07-20T23:59:59');
-    $tles = $storage->getRange(25994, $startTimestamp, $endTimestamp);
     
-Remove Terra TLE from the storage by specific epoch time:
+    $tles = $storage->getRange(25994, '2016-07-18', '2016-07-20T23:59:59');
+    
+Find closest actual TLE for Terra within specified time range:
 
-    $storage->remove(25994, 1468833854); 
+    $tles = $storage->getRange(25994, '2016-07-18', '2016-07-20T23:59:59');
+    $tle = Storage::getClosest($tles, '2016-07-19T16:44:44');
+    
+Remove Terra TLE from the storage manually (not recommended):
+
+    $storage->remove([
+         '0 25994',
+         '1 40069U 14037A   16200.39183603 -.00000022  00000-0  99041-5 0  9999',
+         '2 40069  98.7043 255.1534 0006745  96.2107 263.9838 14.20632312105160'
+     ]); 
 
 ## Configuration
 
