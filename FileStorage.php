@@ -2,8 +2,8 @@
 
 namespace solarpatrol\tle;
 
+use solarpatrol\tle\models\Tle;
 use yii\base\Exception;
-use yii\helpers\ArrayHelper;
 use yii\helpers\FileHelper;
 
 class FileStorage extends Storage
@@ -42,17 +42,25 @@ class FileStorage extends Storage
     /**
      * @inheritdoc
      */
-    public function exists($id, $timestamp)
+    public function exists(&$tle)
     {
+        $id = self::getNoradId($tle);
+        $timestamp = self::getEpochTimestamp($tle);
         return is_file($this->getFilePath($id, $timestamp));
     }
 
     /**
      * @inheritdoc
      */
-    public function add($id, $line1, $line2)
+    public function add(&$tle)
     {
-        $timestamp = $this->getEpochTimestamp($line1);
+        if ($tle instanceof Tle) {
+            $tle = $tle->getTleArray();
+        }
+
+        $id = $this->getNoradId($tle);
+        $timestamp = $this->getEpochTimestamp($tle);
+
         $directoryPath = $this->getDirectoryPath($id, $timestamp);
         if (!is_dir($directoryPath)) {
             if (!@FileHelper::createDirectory($directoryPath, $this->dirMode)) {
@@ -60,28 +68,41 @@ class FileStorage extends Storage
             }
         }
 
-        return $this->write($this->getFilePath($id, $timestamp), $line1, $line2);
+        return $this->write($this->getFilePath($id, $timestamp), $tle);
     }
 
     /**
      * @inheritdoc
      */
-    public function getRange($id, $startTimestamp, $endTimestamp)
+    public function get($id, $startTime, $endTime)
     {
+        $asArray = is_array($id);
+        $ids = $asArray ? $id : [$id];
+
+        $startTimestamp = self::timestamp($startTime);
+        $endTimestamp = self::timestamp($endTime);
+
         $result = [];
 
-        for ($time = ($startTimestamp - $startTimestamp % (24 * 60 * 60)); $time <= $endTimestamp; $time += 24 * 60 * 60) {
-            $tles = $this->getAllForDay($id, $time);
-            foreach ($tles as $tle) {
-                if ($startTimestamp > $tle['timestamp'] || $endTimestamp < $tle['timestamp']) {
-                    continue;
+        for ($timestamp = ($startTimestamp - $startTimestamp % (24 * 60 * 60)); $timestamp <= $endTimestamp; $timestamp += 24 * 60 * 60) {
+            foreach ($ids as $id) {
+                $tles = $this->getAllForDay($id, $timestamp);
+                foreach ($tles as $tle) {
+                    $epochTimestamp = self::getEpochTimestamp($tle);
+                    if ($startTimestamp > $epochTimestamp || $endTimestamp < $epochTimestamp) {
+                        continue;
+                    }
+
+                    if ($asArray) {
+                        if (!isset($result[$id])) {
+                            $result[$id] = [];
+                        }
+                        $result[$id][] = $tle;
+                    }
+                    else {
+                        $result[] = $tle;
+                    }
                 }
-                $result[] = [
-                    'id' => $tle['id'],
-                    'timestamp' => $tle['timestamp'],
-                    'line1' => $tle['line1'],
-                    'line2' => $tle['line2']
-                ];
             }
         }
 
@@ -91,8 +112,10 @@ class FileStorage extends Storage
     /**
      * @inheritdoc
      */
-    public function remove($id, $timestamp)
+    public function remove(&$tle)
     {
+        $id = self::getNoradId($tle);
+        $timestamp = self::getEpochTimestamp($tle);
         return $this->delete($this->getFilePath($id, $timestamp));
     }
 
@@ -100,25 +123,25 @@ class FileStorage extends Storage
      * Gets all TLEs within a single day.
      * 
      * @param int $id satellite's NORAD identifier.
-     * @param int $time Unix timestamp belonging to the day of interest.
+     * @param int $timestamp Unix timestamp belonging to the day of interest.
      * @return array
      */
-    protected function getAllForDay($id, $time)
+    protected function getAllForDay($id, $timestamp)
     {
-        $result = [];
+        $tles = [];
 
-        $directoryPath = $this->getDirectoryPath($id, $time);
-        $files = $this->getDirectoryFilesList($id, $time);
+        $directoryPath = $this->getDirectoryPath($id, $timestamp);
+        $files = $this->getDirectoryFilesList($id, $timestamp);
 
         foreach ($files as $file) {
             $filePath = sprintf('%s%s%s', $directoryPath, DIRECTORY_SEPARATOR, $file);
             $tle = $this->read($filePath);
             if ($tle) {
-                $result[] = $tle;
+                $tles[] = $tle;
             }
         }
 
-        return $result;
+        return $tles;
     }
 
     /**
@@ -139,33 +162,22 @@ class FileStorage extends Storage
             return false;
         }
 
-        $result = [
-            'line1' => fgets($fh),
-            'line2' => fgets($fh)
-        ];
+        $result = fgets($fh);
+
         flock($fh, LOCK_UN);
         fclose($fh);
 
-        if ($result['line1'] === false || $result['line2'] === false) {
-            return false;
-        }
-
-        $result['line1'] = substr($result['line1'], 0, self::TLE_LINE_LENGTH);
-        $result['line2'] = substr($result['line2'], 0, self::TLE_LINE_LENGTH);
-
-        $info = self::parseFilePath($filePath);
-        return ArrayHelper::merge($info ? $info : [], $result);
+        return $result !== false ? json_decode($result) : false;
     }
 
     /**
      * Puts TLE in a file.
      * 
      * @param string $filePath path to TLE file.
-     * @param string $line1 first line of TLE.
-     * @param string $line2 second line of TLE.
+     * @param array $tle
      * @return bool
      */
-    protected function write($filePath, $line1, $line2)
+    protected function write($filePath, &$tle)
     {
         $fh = fopen($filePath, 'w');
         if ($fh === false) {
@@ -177,8 +189,7 @@ class FileStorage extends Storage
             return false;
         }
 
-        fwrite($fh, substr($line1, 0, self::TLE_LINE_LENGTH) . "\n");
-        fwrite($fh, substr($line2, 0, self::TLE_LINE_LENGTH));
+        fwrite($fh, json_encode($tle));
 
         fflush($fh);
         flock($fh, LOCK_UN);
@@ -237,15 +248,15 @@ class FileStorage extends Storage
      * Gets path to satellite's TLE directory for specific day. 
      * 
      * @param int $id satellite's NORAD identifier.
-     * @param int $time Unix timestamp belonging to the day of interest.
+     * @param int $timestamp Unix timestamp belonging to the day of interest.
      * @return string
      */
-    protected function getDirectoryPath($id, $time)
+    protected function getDirectoryPath($id, $timestamp)
     {
         return sprintf('%s%s%s%s%s%s%s', $this->getSatellitePath($id),
-            DIRECTORY_SEPARATOR, gmdate('Y', $time),
-            DIRECTORY_SEPARATOR, gmdate('m', $time),
-            DIRECTORY_SEPARATOR, gmdate('d', $time)
+            DIRECTORY_SEPARATOR, gmdate('Y', $timestamp),
+            DIRECTORY_SEPARATOR, gmdate('m', $timestamp),
+            DIRECTORY_SEPARATOR, gmdate('d', $timestamp)
         );
     }
 
@@ -253,12 +264,12 @@ class FileStorage extends Storage
      * Gets list of TLE files in satellite's directory for specific day.
      * 
      * @param int $id satellite's NORAD identifier.
-     * @param int $time Unix timestamp belonging to the day of interest.
+     * @param int $timestamp Unix timestamp belonging to the day of interest.
      * @return array
      */
-    protected function getDirectoryFilesList($id, $time)
+    protected function getDirectoryFilesList($id, $timestamp)
     {
-        $directoryPath = $this->getDirectoryPath($id, $time);
+        $directoryPath = $this->getDirectoryPath($id, $timestamp);
         if (!is_dir($directoryPath)) {
             return [];
         }
@@ -278,13 +289,13 @@ class FileStorage extends Storage
      * Gets path to TLE file. 
      * 
      * @param int $id satellite's NORAD identifier.
-     * @param int $time Unix timestamp of TLE.
+     * @param int $timestamp Unix timestamp of TLE.
      * @return string
      */
-    protected function getFilePath($id, $time)
+    protected function getFilePath($id, $timestamp)
     {
-        return sprintf('%s%s%s-%s-%s.tle', $this->getDirectoryPath($id, $time),
-            DIRECTORY_SEPARATOR, gmdate('H', $time), gmdate('i', $time), gmdate('s', $time)
+        return sprintf('%s%s%s-%s-%s.json', $this->getDirectoryPath($id, $timestamp),
+            DIRECTORY_SEPARATOR, gmdate('H', $timestamp), gmdate('i', $timestamp), gmdate('s', $timestamp)
         );
     }
 
