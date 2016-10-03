@@ -116,7 +116,46 @@ Both of them have the following common sensitive configuration properties:
 
 ## Console commands
 
-TODO
+In order to use console commands specify the module in [bootstrap](http://www.yiiframework.com/doc-2.0/guide-structure-modules.html#bootstrapping-modules)
+configuration:
+
+    'bootstrap' => ['tle'],
+    'modules' => [
+        'tle' => [
+            'components' => [
+                'storage' => [
+                    'class' => 'solarpatrol\tle\FileStorage',
+                    ...
+                ]
+            ]
+        ]
+    ],
+    ...
+    
+The following console commands exist:
+    
+1. Download TLEs and save the in the storage: 
+    
+        ./yii tle/update[/index] ids [--startTime] [--endTime]
+    
+    where
+    
+    - `ids` is a set of NORAD identifiers;
+    - `startTime` (optional) is start of time range in ISO 8601 or Unix timestamp (if omitted then a moment five days
+    earlier than `endTime` is taken);
+    - `endTime` (optional) is end of time range in ISO 8601 or Unix timestamp (if omitted then current system time is
+    taken).
+    
+    ### Examples
+    
+    - Download and store TLEs for Terra and Aqua for recent five days:
+    
+            ./yii tle/update 25994 27424
+        
+    - Download and store TLEs for Terra, Aqua and Meteor-M №2 in time range 21st of September, 2016 — 23rd of September,
+    2016:
+    
+            ./yii tle/update 25994 27424 40069 --startTime=2016-09-21 --endTime=2016-09-23T23:59:59
 
 ## Contribution
 

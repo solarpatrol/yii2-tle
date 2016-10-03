@@ -14,6 +14,12 @@ class UpdateController extends Controller
     public $startTime;
     public $endTime;
 
+    public function options($actionId)
+    {
+        $options = parent::options($actionId);
+        return array_merge($options, ['startTime', 'endTime']);
+    }
+
     public function actionIndex()
     {
         $module = Module::getInstance();
