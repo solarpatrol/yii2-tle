@@ -76,19 +76,33 @@ class FileStorage extends Storage
      */
     public function get($id, $startTime, $endTime)
     {
+        $asArray = is_array($id);
+        $ids = $asArray ? $id : [$id];
+
         $startTimestamp = self::timestamp($startTime);
         $endTimestamp = self::timestamp($endTime);
 
         $result = [];
 
         for ($timestamp = ($startTimestamp - $startTimestamp % (24 * 60 * 60)); $timestamp <= $endTimestamp; $timestamp += 24 * 60 * 60) {
-            $tles = $this->getAllForDay($id, $timestamp);
-            foreach ($tles as $tle) {
-                $epochTimestamp = self::getEpochTimestamp($tle);
-                if ($startTimestamp > $epochTimestamp || $endTimestamp < $epochTimestamp) {
-                    continue;
+            foreach ($ids as $id) {
+                $tles = $this->getAllForDay($id, $timestamp);
+                foreach ($tles as $tle) {
+                    $epochTimestamp = self::getEpochTimestamp($tle);
+                    if ($startTimestamp > $epochTimestamp || $endTimestamp < $epochTimestamp) {
+                        continue;
+                    }
+
+                    if ($asArray) {
+                        if (!isset($result[$id])) {
+                            $result[$id] = [];
+                        }
+                        $result[$id][] = $tle;
+                    }
+                    else {
+                        $result[] = $tle;
+                    }
                 }
-                $result[] = $tle;
             }
         }
 

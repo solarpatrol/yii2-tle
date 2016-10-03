@@ -13,6 +13,8 @@ abstract class Storage extends Component
     const TLE_LINE_LENGTH = 69;
     const SECONDS_PER_DAY = 86400;
 
+    public $actualDaysCount = 5;
+
     /**
      * @var string URL of Space Track service.
      */
@@ -138,7 +140,7 @@ abstract class Storage extends Component
     /**
      * Finds all TLEs in the storage within specified time range.
      *
-     * @param int $id satellite's NORAD identifier.
+     * @param int|array $id satellite's NORAD identifier.
      * @param int $startTime start of time range.
      * @param int $endTime end of time range.
      * @return array
@@ -188,12 +190,15 @@ abstract class Storage extends Component
      * @return array
      * @throws Exception
      */
-    public function download(array $ids, $startTime, $endTime)
+    public function download(array $ids, $startTime = null, $endTime = null)
     {
         $startTimestamp = self::timestamp($startTime);
-        $startTimestamp -= $startTimestamp % self::SECONDS_PER_DAY;
-
         $endTimestamp = self::timestamp($endTime);
+        if ($startTime === null || $startTimestamp >= $endTimestamp) {
+            $startTimestamp = $endTimestamp - $this->actualDaysCount * Storage::SECONDS_PER_DAY;
+        }
+
+        $startTimestamp -= $startTimestamp % self::SECONDS_PER_DAY;
         $endTimestamp -= $endTimestamp % self::SECONDS_PER_DAY - self::SECONDS_PER_DAY;
 
         $epochRange = gmdate('Y-m-d', $startTimestamp) . '--' . gmdate('Y-m-d', $endTimestamp);

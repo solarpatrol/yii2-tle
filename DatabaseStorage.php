@@ -59,28 +59,46 @@ class DatabaseStorage extends Storage
      */
     public function get($id, $startTime, $endTime)
     {
+        $asArray = is_array($id);
+        $ids = $asArray ? $id : [$id];
+
         $startTimestamp = self::timestamp($startTime);
         $endTimestamp = self::timestamp($endTime);
 
+        /* @var $tles array */
         $tles = Tle::find()
             ->select([
                 'id' => 'norad_id',
-                'timestamp' => 'epoch_time',
+                'name' => 'name',
                 'line1' => 'line_1',
                 'line2' => 'line_2',
             ])
-            ->where(['norad_id' => $id])
+            ->where(['norad_id' => $ids])
             ->andWhere(['>=', 'epoch_time', gmdate('c', $startTimestamp)])
             ->andWhere(['<=', 'epoch_time', gmdate('c', $endTimestamp)])
             ->orderBy(['epoch_time' => SORT_ASC])
             ->asArray()
             ->all();
 
-        foreach ($tles as $i => $tle) {
-            $tles[$i]['timestamp'] = strtotime($tle['timestamp']);
+        $result = [];
+        foreach ($tles as $tle) {
+            $id = $tle['id'];
+            unset($tle['id']);
+            $tle['name'] = '0 ' . $tle['name'];
+            $tle = array_values($tle);
+
+            if ($asArray) {
+                if (!isset($result[$id])) {
+                    $result[$id] = [];
+                }
+                $result[$id][] = $tle;
+            }
+            else {
+                $result[] = $tle;
+            }
         }
 
-        return $tles;
+        return $result;
     }
 
     /**

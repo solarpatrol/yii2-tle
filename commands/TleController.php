@@ -7,9 +7,9 @@ use solarpatrol\tle\Storage;
 use yii\base\Exception;
 use yii\console\Controller;
 
-class UpdateController extends Controller
+class TleController extends Controller
 {
-    const DEFAULT_DAYS_COUNT = 5;
+    public $defaultAction = 'update';
 
     public $startTime;
     public $endTime;
@@ -20,10 +20,8 @@ class UpdateController extends Controller
         return array_merge($options, ['startTime', 'endTime']);
     }
 
-    public function actionIndex()
+    public function actionUpdate()
     {
-        $module = Module::getInstance();
-
         $ids = func_get_args();
 
         if (empty($ids)) {
@@ -32,13 +30,12 @@ class UpdateController extends Controller
         }
 
         /* @var Storage $storage */
-        $storage = $module->storage;
+        $storage = Module::getInstance()->storage;
 
         $startTimestamp = Storage::timestamp($this->startTime);
         $endTimestamp = Storage::timestamp($this->endTime);
-
-        if ($startTimestamp === $endTimestamp) {
-            $startTimestamp = $endTimestamp - self::DEFAULT_DAYS_COUNT * Storage::SECONDS_PER_DAY;
+        if ($this->startTime === null || $startTimestamp >= $endTimestamp) {
+            $startTimestamp = $endTimestamp - $storage->actualDaysCount * Storage::SECONDS_PER_DAY;
         }
 
         try {

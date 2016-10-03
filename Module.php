@@ -9,6 +9,9 @@ use yii\helpers\ArrayHelper;
 
 class Module extends BaseModule implements BootstrapInterface
 {
+    public $webControllerId = 'tle';
+    public $consoleControllerId = 'tle';
+
     public function __construct($id, $parent, array $config = [])
     {
         $config = ArrayHelper::merge([
@@ -43,8 +46,18 @@ class Module extends BaseModule implements BootstrapInterface
 
     public function bootstrap($app)
     {
+        if ($app instanceof \yii\web\Application) {
+            if ($this->webControllerId && !isset(\Yii::$app->controllerMap[$this->webControllerId])) {
+                \Yii::$app->controllerMap[$this->webControllerId] = \solarpatrol\tle\controllers\TleController::className();
+            }
+        }
+
         if ($app instanceof \yii\console\Application) {
             $this->controllerNamespace = 'solarpatrol\tle\commands';
+
+            if ($this->consoleControllerId && !isset(\Yii::$app->controllerMap[$this->consoleControllerId])) {
+                \Yii::$app->controllerMap[$this->consoleControllerId] = \solarpatrol\tle\commands\TleController::className();
+            }
         }
     }
 }
