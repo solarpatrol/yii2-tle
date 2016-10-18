@@ -23,9 +23,9 @@ class RequestAction extends Action
         }
 
         $tles = $storage->get($ids, $startTimestamp, $endTimestamp);
-        if ($download) {
-            $foundIds = array_keys($tles);
-            $missedIds = array_values(array_diff($ids, $foundIds));
+        $foundIds = array_keys($tles);
+        $missedIds = array_values(array_diff($ids, $foundIds));
+        if (count($missedIds) > 0 && $download) {
             $storage->update($missedIds, $startTimestamp, $endTimestamp);
             $tles = $storage->get($ids, $startTimestamp, $endTimestamp);
         }
