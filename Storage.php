@@ -246,6 +246,9 @@ abstract class Storage extends Component
             $satellites = $this->getSatcat();
             $ids = sprintf('%d--%d', $satellites[count($satellites) - 1]['id'], $satellites[0]['id']);
         }
+        else {
+            sort($ids);
+        }
 
         $startTimestamp = self::timestamp($startTime);
         $endTimestamp = self::timestamp($endTime);
