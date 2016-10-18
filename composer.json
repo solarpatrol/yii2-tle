@@ -1,7 +1,7 @@
 {
   "name": "solarpatrol/yii2-tle",
   "description": "TLE storage component for Yii2 based on www.space-track.org API",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "type": "yii2-extension",
   "homepage": "https://github.com/solarpatrol/yii2-tle",
   "keywords": ["tle", "storage", "satellites", "norad", "space-track"],
