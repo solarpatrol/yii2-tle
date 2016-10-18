@@ -120,6 +120,23 @@ class FileStorage extends Storage
     }
 
     /**
+     * @inheritdoc
+     */
+    public function getIds()
+    {
+        $ids = [];
+        foreach (scandir($this->storagePath) as $file) {
+            if (!preg_match('/^\d{1,5}$/', $file) || !is_dir($this->storagePath . DIRECTORY_SEPARATOR . $file)) {
+                continue;
+            }
+            $ids[] = intval($file);
+        };
+
+        sort($ids);
+        return $ids;
+    }
+
+    /**
      * Gets all TLEs within a single day.
      * 
      * @param int $id satellite's NORAD identifier.

@@ -118,4 +118,18 @@ class DatabaseStorage extends Storage
         }
         return $tle->delete() !== false ? true : false;
     }
+
+    /**
+     * @inheritdoc
+     */
+    public function getIds()
+    {
+        return Tle::find()
+            ->select(['norad_id'])
+            ->distinct()
+            ->orderBy([
+                'norad_id' => SORT_ASC
+            ])
+            ->column();
+    }
 }

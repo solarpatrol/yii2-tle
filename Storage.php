@@ -156,6 +156,56 @@ abstract class Storage extends Component
     abstract function remove(&$tle);
 
     /**
+     * Gets NORAD identifiers of all satellites having TLEs in the storage.
+     * 
+     * @return array
+     */
+    abstract function getIds();
+
+    /**
+     * Makes API request.
+     *
+     * @param string $url request URL.
+     * @return mixed
+     * @throws Exception
+     */
+    public function requestApi($url)
+    {
+        $cookiePath = null;
+        try {
+            $result = $this->login();
+            if ($result['response']['http_code'] !== 200) {
+                throw new Exception(sprintf(Module::t('Unable to log in with HTTP error code #%d.'), $result['response']['http_code']));
+            }
+
+            $cookiePath = $result['cookiePath'];
+
+            $result = $this->curl([
+                CURLOPT_URL => $url,
+                CURLOPT_HEADER => false,
+                CURLOPT_COOKIEFILE => $cookiePath
+            ]);
+
+            if ($result['response']['http_code'] !== 200 ||
+                $result['response']['content_type'] !== 'application/json'
+            ) {
+                $this->logout($cookiePath);
+                throw new Exception(sprintf(Module::t('Request is ended with HTTP error code #%d.'), $result['response']['http_code']));
+            }
+
+            $this->logout($cookiePath);
+
+            return $result['output'];
+        }
+        catch(Exception $e) {
+            if ($cookiePath !== null) {
+                $this->logout($cookiePath);
+            }
+            throw $e;
+        }
+    }
+
+    /**
      * Downloads TLEs from Space Track for specified time range and saves them in the storage.
      *
      * @param array $ids NORAD identifiers of satellites.
@@ -192,6 +242,11 @@ abstract class Storage extends Component
      */
     public function download(array $ids, $startTime = null, $endTime = null)
     {
+        if ($ids[0] === '*') {
+            $satellites = $this->getSatcat();
+            $ids = sprintf('%d--%d', $satellites[count($satellites) - 1]['id'], $satellites[0]['id']);
+        }
+
         $startTimestamp = self::timestamp($startTime);
         $endTimestamp = self::timestamp($endTime);
         if ($startTime === null || $startTimestamp >= $endTimestamp) {
@@ -205,7 +260,7 @@ abstract class Storage extends Component
         $predicates = ['TLE_LINE0', 'TLE_LINE1', 'TLE_LINE2'];
 
         $url = sprintf('%s/basicspacedata/query/class/tle/format/json/predicates/%s/EPOCH/%s/NORAD_CAT_ID/%s/orderby/EPOCH%%20desc',
-            $this->spaceTrackUrl, implode(',', $predicates), $epochRange, implode(',', $ids)
+            $this->spaceTrackUrl, implode(',', $predicates), $epochRange, is_array($ids) ? implode(',', $ids) : $ids
         );
 
         // Checking whether TLEs are present in local cache
@@ -222,43 +277,55 @@ abstract class Storage extends Component
             }
         }
 
-        $cookiePath = null;
-        try {
-            $result = $this->login();
-            if ($result['response']['http_code'] !== 200) {
-                throw new Exception(sprintf(Module::t('Unable to log in with HTTP error code #%d.'), $result['response']['http_code']));
-            }
-
-            $cookiePath = $result['cookiePath'];
-
-            $result = $this->curl([
-                CURLOPT_URL => $url,
-                CURLOPT_HEADER => false,
-                CURLOPT_COOKIEFILE => $cookiePath
-            ]);
-
-            if ($result['response']['http_code'] !== 200 ||
-                $result['response']['content_type'] !== 'application/json'
-            ) {
-                $this->logout($cookiePath);
-                throw new Exception(sprintf(Module::t('Request is ended with HTTP error code #%d.'), $result['response']['http_code']));
-            }
-
-            $this->logout($cookiePath);
-
-            $data = self::parseTleData($result['output']);
-            if ($this->enableCaching) {
-                \Yii::$app->cache->set($cacheKey, $data, $this->cacheExpiration);
-            }
-
-            return $data;
+        $response = $this->requestApi($url);
+        $data = self::parseTleData($response);
+        if ($this->enableCaching) {
+            \Yii::$app->cache->set($cacheKey, $data, $this->cacheExpiration);
         }
-        catch (Exception $e) {
-            if ($cookiePath !== null) {
-                $this->logout($cookiePath);
+        return $data;
+    }
+
+    public function getSatcat(array $options = [])
+    {
+        $limit = isset($options['limit']) ? $options['limit'] : 25000;
+        $offset = isset($options['offset']) ? $options['offset'] : 0;
+        $internal = isset($options['internal']) ? $options['internal'] : false;
+
+        $cacheKey = 'tle:satcat';
+        if (!$internal && $this->enableCaching) {
+            $satcat = \Yii::$app->cache->get($cacheKey);
+            if ($satcat !== false) {
+                return $satcat;
             }
-            throw $e;
         }
+
+        $satcat = [];
+
+        $url = sprintf('%s/basicspacedata/query/class/satcat/format/json/predicates/NORAD_CAT_ID,SATNAME/limit/%d,%d/orderby/NORAD_CAT_ID%%20desc',
+            $this->spaceTrackUrl, $limit, $offset
+        );
+
+        $response = Json::decode($this->requestApi($url));
+        foreach($response as $item) {
+            $satcat[] = [
+                'id' => intval($item['NORAD_CAT_ID']),
+                'name' => $item['SATNAME']
+            ];
+        }
+
+        if (count($response) === $limit) {
+            $satcat = array_merge($satcat, $this->getSatcat([
+                'limit' => $limit,
+                'offset' => $offset + $limit,
+                'internal' => true
+            ]));
+        }
+
+        if (!$internal && $this->enableCaching) {
+            \Yii::$app->cache->set($cacheKey, $satcat, 86400 * 7);
+        }
+
+        return $satcat;
     }
 
     /**
