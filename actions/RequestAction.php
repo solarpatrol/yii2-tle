@@ -10,6 +10,7 @@ class RequestAction extends Action
 {
     public function run(array $id, $startTime = null, $endTime = null)
     {
+        $download = \Yii::$app->request->get('download') ? true : false;
         $ids = is_array($id) ? $id : [$id];
 
         /* @var Storage $storage */
@@ -22,6 +23,12 @@ class RequestAction extends Action
         }
 
         $tles = $storage->get($ids, $startTimestamp, $endTimestamp);
+        $foundIds = array_keys($tles);
+        $missedIds = array_values(array_diff($ids, $foundIds));
+        if (count($missedIds) > 0 && $download) {
+            $storage->update($missedIds, $startTimestamp, $endTimestamp);
+            $tles = $storage->get($ids, $startTimestamp, $endTimestamp);
+        }
 
         \Yii::$app->response->format = 'json';
         return $tles;
