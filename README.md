@@ -175,6 +175,8 @@ The following web actions are available:
     - `startTime` is start of time range in ISO 8601 or Unix timestamp (optional, if omitted then a moment
     `actualDaysCount` days earlier than `endTime` is taken);
     - `endTime` is end of time range in ISO 8601 or Unix timestamp (optional, if omitted then current system time is
+    taken);
+    - `download` if it's set then attempt to download TLEs missed in the storage will be executed. 
     
     ### Examples
     
