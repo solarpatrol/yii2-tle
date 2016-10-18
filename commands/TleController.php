@@ -13,24 +13,34 @@ class TleController extends Controller
 
     public $startTime;
     public $endTime;
+    public $existing = false;
+    public $all = false;
 
     public function options($actionId)
     {
         $options = parent::options($actionId);
-        return array_merge($options, ['startTime', 'endTime']);
+        return array_merge($options, ['startTime', 'endTime', 'existing', 'all']);
     }
 
     public function actionUpdate()
     {
-        $ids = func_get_args();
+        /* @var Storage $storage */
+        $storage = Module::getInstance()->storage;
+        
+        if ($this->existing) {
+            $ids = $storage->getIds();
+        }
+        elseif ($this->all) {
+            $ids = ['*'];
+        }
+        else {
+            $ids = func_get_args();
+        }
 
         if (empty($ids)) {
             $this->stdout(Module::t('Satellites\' NORAD identifiers are not specified.') . "\n");
             return self::EXIT_CODE_NORMAL;
         }
-
-        /* @var Storage $storage */
-        $storage = Module::getInstance()->storage;
 
         $startTimestamp = Storage::timestamp($this->startTime);
         $endTimestamp = Storage::timestamp($this->endTime);

@@ -87,10 +87,17 @@ Find closest actual TLE for Terra within specified time range:
 Remove Terra TLE from the storage manually (not recommended):
 
     $storage->remove([
-         '0 25994',
-         '1 40069U 14037A   16200.39183603 -.00000022  00000-0  99041-5 0  9999',
-         '2 40069  98.7043 255.1534 0006745  96.2107 263.9838 14.20632312105160'
-     ]); 
+        '0 25994',
+        '1 40069U 14037A   16200.39183603 -.00000022  00000-0  99041-5 0  9999',
+        '2 40069  98.7043 255.1534 0006745  96.2107 263.9838 14.20632312105160'
+    ]);
+     
+Get a list of all known launched satellites:
+     
+    $satellites = $storage->getSatcat();
+    foreach($satellites as $satellite) {
+        print $satellite['id'] . ' ' . $satellite['name'] . "\n";
+    }
 
 ## Configuration
 
@@ -215,13 +222,15 @@ Run a command:
     
 The following console commands are available:
     
-1. Download TLEs and save the in the storage (default): 
+1. Download TLEs and save them in the storage (default): 
     
-        ./yii tle/update ids [--startTime] [--endTime]
+        ./yii tle/update [ids] [--existing] [--all] [--startTime] [--endTime]
     
     where
-    
-    - `ids` is a set of NORAD identifiers;
+
+    - `ids` is a set of NORAD identifiers (used when both `existing` and `all` arguments are missed);
+    - `existing` determines `ids` automatically basing on TLEs already existing in the storage;
+    - `all` determines `ids` automatically basing on Satellite Catalog of all known launched satellites;
     - `startTime` is start of time range in ISO 8601 or Unix timestamp (optional, if omitted then a moment
     `actualDaysCount` days earlier than `endTime` is taken);
     - `endTime` is end of time range in ISO 8601 or Unix timestamp (optional, if omitted then current system time is
@@ -237,6 +246,14 @@ The following console commands are available:
     2016:
     
             ./yii tle/update 25994 27424 40069 --startTime=2016-09-21 --endTime=2016-09-23T23:59:59
+            
+    - Download TLEs for all satellites which are already in the storage:
+    
+            ./yii tle/update --existing
+            
+    - Download TLEs for all known launched satellites:
+    
+            ./yii tle/update --all
 
 ## Contribution
 
